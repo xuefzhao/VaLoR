@@ -1,4 +1,6 @@
-#STEP1. To make fake NIST bed files with off breakpoints:
+This repository contains files and commands adopted to simulate dels with off breakpoits in NA12878
+
+###STEP1. To make fake NIST bed files with off breakpoints:
 
 Commands used:
 ```
@@ -46,7 +48,7 @@ Fake.Off.Breakpoints.py --bed Personalis_1000_Genomes_deduplicated_deletions.bed
 ```
 
 
-#STEP2. Apply VaLoR on simulatd files through bed module:
+###STEP2. Apply VaLoR on simulatd files through bed module:
 
 General command for applying VaLoR:
 ```
