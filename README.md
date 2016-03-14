@@ -13,25 +13,19 @@ Usage: VaLoR [Options] [Parameters]
 Options: 
 
 	svelter
-	
 	vcf
-	
 	bed
 	
 Parameters:
 
 	--sv-input:
-	
 	--output-path:
- 
 	--pacbio-input:
-	
 	--reference:
 	
 Optional Parameters:
 
 	--window-size
-	
 	--sv-type
 	
 
