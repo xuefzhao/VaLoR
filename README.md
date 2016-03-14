@@ -9,26 +9,40 @@ samtools: http://samtools.sourceforge.net/
 ```
 ##Usage:
 Usage: VaLoR [Options] [Parameters]
+
 Options: 
+
 	svelter
+	
 	vcf
+	
 	bed
+	
 Parameters:
+
 	--sv-input:
- --output-path:
+	
+	--output-path:
+ 
 	--pacbio-input:
+	
 	--reference:
+	
 Optional Parameters:
+
 	--window-size
+	
 	--sv-type
+	
 
 ##Quick Start
 Download and Install
-```git clone 
+```
+git clone 
 cd VaLoR
 chmod +x VaLoR
 cp VaLoR your/bin/directory
-‘’’
+```
 
 
 
