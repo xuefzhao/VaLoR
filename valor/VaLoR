@@ -1,0 +1,259 @@
+#!/usr/bin/env python
+
+#!python
+#For debug use only
+#Tet deletions:
+#command='Pacbio.Validator.py vcf --sv-input /mnt/EXT/Mills-scratch2/Xuefang/Pacbio.Validator/vcf_files/NA12878_Delly_DEL.vcf --output-path /mnt/EXT/Mills-scratch2/Xuefang/NA12878.NGS/SVelter_rec2/PacValTest/ --pacbio-input /mnt/EXT/Mills-scratch2/Xuefang/NA12878.Pacbio/alignment/sorted_final_merged.bam --reference /mnt/EXT/Mills-scratch2/reference/hg19_platinum/genome.fa'
+#Tet inversions:
+#command='Pacbio.Validator.py vcf --sv-input /mnt/EXT/Mills-scratch2/Xuefang/Pacbio.Validator/vcf_files/NA12878_Delly_INV.vcf --output-path /mnt/EXT/Mills-scratch2/Xuefang/NA12878.NGS/SVelter_rec2/PacValTest/ --pacbio-input /mnt/EXT/Mills-scratch2/Xuefang/NA12878.Pacbio/alignment/sorted_final_merged.bam --reference /mnt/EXT/Mills-scratch2/reference/hg19_platinum/genome.fa'
+#Tet SVelter:
+#command='Pacbio.Validator.py vali --sv-input /scratch/remills_flux/xuefzhao/SV_discovery_index/download/SVelter.version5.analysis/vali_files/SV_type.del.dup.vali.NA19240 --output-path /scratch/remills_flux/xuefzhao/SV_discovery_index/download/SVelter.version5.analysis/SV_type.del.dup.vali.NA19240 --pacbio-input /scratch/remills_flux/xuefzhao/SV_discovery_index/smrt.download/alignment/NA19240.XXX.bam --reference /scratch/remills_flux/xuefzhao/reference/GRCh38.1KGP/GRCh38_full_analysis_set_plus_decoy_hla.fa'
+#command='Pacbio.Validator.py svelter --sv-input /scratch/remills_flux/xuefzhao/NA12878.NGS/hg19/SVelter.rec2/NA12878_S1.chr9.svelter  --output-path /scratch/remills_flux/xuefzhao/NA12878.NGS/hg19/SVelter.rec2/NA12878_S1.chr9/ --pacbio-input /scratch/remills_flux/xuefzhao/NA12878.Pacbio/alignment/NA12878.hg19.Pacbio.bam --reference /scratch/remills_flux/xuefzhao/reference/hg19/hg19.fa'
+#command='VaLoR svelter --sv-input /scratch/remills_flux/xuefzhao/NA12878.NGS/hg19/NA12878_S1.chr20.svelter  --output-path /scratch/remills_flux/xuefzhao/NA12878.NGS/hg19/NA12878_S1.chr20 --pacbio-input /scratch/remills_flux/xuefzhao/NA12878.Pacbio/alignment/NA12878.hg19.Pacbio.bam --reference /scratch/remills_flux/xuefzhao/reference/hg19/hg19.fa'
+#command='VaLoR svelter --sv-input /scratch/remills_flux/xuefzhao/CHM1/IL500/hg19/SVelter.rec5/CHM1.hg19.chr1.sorted.chr.removed.svelter --output-path /scratch/remills_flux/xuefzhao/CHM1/IL500/hg19/CHM1.hg19.chr1.sorted.GRCh37 --pacbio-input /scratch/remills_flux/xuefzhao/CHM1/Pacbio/alignment/SAMN02744161.pacbio.GRCh37.sorted.bam --reference /scratch/remills_flux/xuefzhao/reference/GRCh37/human_g1k_v37.fasta'
+#command='VaLoR bed --sv-type INS --sv-input /scratch/remills_flux/xuefzhao/VaLoR/1000genome_vcf/ALL.phase3_shapeit2_mvncall_integrated_v5.20130502.genotypes.NA12878.SV.ALU.bed --output-path /scratch/remills_flux/xuefzhao/NA12878.NGS/hg19/NA12878_S1.chr19 --pacbio-input /scratch/remills_flux/xuefzhao/NA12878.Pacbio/alignment/NA12878.hg19.Pacbio.bam --reference /scratch/remills_flux/xuefzhao/reference/hg19/hg19.fa'
+#sys.argv=command.split()
+import os
+import re
+import sys
+import matplotlib
+import time
+import sklearn
+matplotlib.use('Agg') 
+if len(sys.argv)<2: 
+	import prep
+	prep.print_read_me()
+else:
+	from VaLoR_Function import *
+	import getopt
+	import scipy
+	import random
+	import math
+	import numpy as np
+	from numpy import vstack,array
+	from numpy.random import rand
+	from scipy.cluster.vq import vq, kmeans, whiten
+	from scipy import stats
+	from scipy.stats import linregress
+	from sklearn import cluster
+	from scipy.spatial import distance
+	import sklearn.datasets
+	from sklearn.preprocessing import StandardScaler
+	import matplotlib.pyplot as plt
+	import plotting
+	function_name=sys.argv[1]
+	def Command_parametre_readin():
+		global lenght_cff
+		lenght_cff=100
+		global dots_num_cff
+		dots_num_cff=20
+		global clu_dis_cff
+		clu_dis_cff=5
+		global point_dis_cff
+		point_dis_cff=20
+		global simple_dis_cff
+		simple_dis_cff=100#min resolution:50bp
+		global invert_base
+		invert_base = { 'A' : 'T', 'T' : 'A', 'C' : 'G', 'G' : 'C','N' : 'N','a' : 't', 't' : 'a', 'c' : 'g', 'g' : 'c','n' : 'n'}
+		opts,args=getopt.getopt(sys.argv[2:],'i:',['sv-input=','reference=','pacbio-input=','output-path=','sv-type='])
+		global dict_opts
+		dict_opts=dict(opts)
+		global out_path
+		out_path=path_modify(dict_opts['--output-path'])
+		path_mkdir(out_path)
+		global out_file_Cannot_Validate
+		out_file_Cannot_Validate=out_path+'Unable.to.validate.rec'
+		file_initiate(out_file_Cannot_Validate)
+		global sample_name
+		sample_name='.'.join(dict_opts['--sv-input'].split('/')[-1].split('.')[:-1])
+		global window_size
+		if '--window-size' in dict_opts.keys():
+			window_size=int(dict_opts['--window-size'])
+		else:
+			window_size=10
+		global start
+		start=0
+		global delta
+		delta=50
+		global bam_in
+		bam_in=dict_opts['--pacbio-input']
+		global ref
+		ref=dict_opts['--reference']
+		global chromosomes
+		chromosomes=chromos_readin(ref)
+		global flank_length
+		flank_length=500
+		global region_QC_Cff
+		region_QC_Cff=0.4#QC score for repetitive regions; score=dots on diagnal / all dots when plotting ref vs. ref
+		global min_length
+		min_length=50
+		global min_read_compare
+		min_read_compare=20
+		global case_number
+		case_number=-1
+		global qc_file_name
+		qc_file_name=out_path+'reference_QC.rec'
+		qc_ref_file_initiate(qc_file_name)
+	if function_name=='svelter':
+		import svelter_function as sf
+		def global_para_define(filein):
+			global PacVal_score_hash
+			PacVal_score_hash={}
+			global PacVal_file_in
+			PacVal_file_in=filein
+			global PacVal_file_out
+			PacVal_file_out=filein+'.PacVal'
+		def main():
+			Command_parametre_readin()
+			case_hash=sf.svelter_read_in(dict_opts['--sv-input'])
+			global_para_define(dict_opts['--sv-input'])
+			global_list=[lenght_cff,dots_num_cff,clu_dis_cff, point_dis_cff, simple_dis_cff, invert_base, dict_opts, out_path, out_file_Cannot_Validate, sample_name, start, delta, bam_in, ref, chromosomes, region_QC_Cff, min_length, min_read_compare, case_number, qc_file_name]
+			svelter_list=[PacVal_file_in,PacVal_file_out]
+			for k1 in case_hash.keys():
+				for k2 in case_hash[k1].keys():
+					for k3 in case_hash[k1][k2]:
+						print k3
+						plt_figure_index=k3[-1]+1
+						if int(k3[-2])-int(k3[1])<5000:
+							PacVal_score_hash=calcu_eu_dis_complex_short(global_list,svelter_list,plt_figure_index,PacVal_score_hash,[k1,k2]+k3[:-1],k3[-1])
+						else:
+							if len(k3)<5:
+								PacVal_score_hash=calcu_eu_dis_simple_long(global_list,svelter_list,plt_figure_index,PacVal_score_hash,[k1,k2]+k3[:-1],k3[-1])
+							else:
+
+			sf.write_PacVal_score_hash_svelter(PacVal_file_in,PacVal_file_out,PacVal_score_hash)
+	if function_name=='vali':
+		import vali_function as vali
+		def vali_read_in(filein):
+			global PacVal_score_hash
+			PacVal_score_hash={}
+			global PacVal_file_in
+			PacVal_file_in=filein
+			global PacVal_file_out
+			PacVal_file_out=filein+'.PacVal'
+			out={}
+			fin=open(filein)
+			pin=fin.readline().strip().split()
+			rec=-1
+			for line in fin:
+				pin=line.strip().split()
+				rec+=1
+				if not pin[0] in out.keys():
+					out[pin[0]]={}
+				if not pin[1] in out[pin[0]].keys():
+					out[pin[0]][pin[1]]=[]
+				if not pin[2:] in out[pin[0]][pin[1]]:
+					out[pin[0]][pin[1]].append(pin[2:]+[rec])
+			fin.close()
+			return out
+		def write_PacVal_score_hash():
+			fo=open(PacVal_file_out,'w')
+			rec=-1
+			fin=open(PacVal_file_in)
+			for line in fin:
+				pin=line.strip().split()
+				rec+=1
+				if rec in PacVal_score_hash.keys():
+					print >>fo, ' '.join([str(i) for i in pin+[str(PacVal_score_hash[rec])]])
+				else:
+					print >>fo, ' '.join([str(i) for i in pin+['-1']])
+			fo.close()
+			fin.close()
+		def main():
+			Command_parametre_readin()
+			case_hash=vali_read_in(dict_opts['--sv-input'])
+			for k1 in case_hash.keys():
+				for k2 in case_hash[k1].keys():
+					for k3 in case_hash[k1][k2]:
+						print k3
+						current_info=[k1,k2]+k3
+						global plt_figure_index
+						plt_figure_index=k3[-1]+1
+						if len(k3)==3:
+							if int(k3[2])-int(k3[1])<5000: 
+								PacVal_score_hash=calcu_eu_dis_complex_short(PacVal_score_hash,plt_figure_index,ref,region_QC_Cff,delta,chromosomes,out_file_Cannot_Validate,out_path,sample_name,bam_in,[k1,k2]+k3[:-1],k3[-1])
+							else: 
+								PacVal_score_hash=calcu_eu_dis_simple_long(PacVal_score_hash,out_path,sample_name,[k1,k2]+k3[:-1],k3[-1])
+						else:
+							if int(k3[-2])-int(k3[1])<5000:
+								PacVal_score_hash=calcu_eu_dis_complex_short(PacVal_score_hash,out_path,sample_name,[k1,k2]+k3[:-1],k3[-1])
+			write_PacVal_score_hash()
+	if function_name=='vcf':
+		import vcf_function as vf
+		#for input files in vcf format, we require these information in the info column: 
+		#SVTYPE='svtype',
+		#END=number, indicating end of the event
+		#or SVLEN='length',indicating length of the insertion; for ins only
+		#for any CNV records, pls refer to the 1KGP format
+		def global_para_define():
+			global PacVal_score_hash
+			PacVal_score_hash={}
+			global PacVal_file_in
+			PacVal_file_in=dict_opts['--sv-input']
+			global PacVal_file_out
+			PacVal_file_out=PacVal_file_in+'.PacVal'
+		def main():
+			Command_parametre_readin()
+			case_hash=vf.vcf_read_in(dict_opts['--sv-input'],flank_length)
+			case_hash_unique=vf.case_hash_unify(case_hash)
+			global_list=[lenght_cff,dots_num_cff,clu_dis_cff, point_dis_cff, simple_dis_cff, invert_base, dict_opts, out_path, out_file_Cannot_Validate, sample_name, start, delta, bam_in, ref, chromosomes, region_QC_Cff, min_length, min_read_compare, case_number, qc_file_name]
+			svelter_list=[PacVal_file_in,PacVal_file_out]
+			for k1 in case_hash_unique:
+				print k1
+				global plt_figure_index
+				plt_figure_index=k1[-1]+1
+				if not '.' in k1 and not '^' in k1:
+					if not k1[3]==k1[4]:
+						if Insertion_ref_recognize(k1[3])==0:
+							if k1[2]-k1[1]<5000:
+								PacVal_score_hash=calcu_eu_dis_complex_short(global_list,svelter_list,plt_figure_index,PacVal_score_hash,[k1,k2]+k3[:-1],k3[-1])
+							else: 
+								PacVal_score_hash=calcu_eu_dis_simple_long(global_list,svelter_list,plt_figure_index,PacVal_score_hash,[k1,k2]+k3[:-1],k3[-1])
+						else: #insertion
+							if k1[2]<5000:
+								PacVal_score_hash=calcu_eu_dis_simple_ins_short(PacVal_score_hash,out_path,sample_name,k1[3:5]+k1[:3],k1[-1])
+				else:
+					if k1[-2]=='.': #we only consider reads going through first junc in forward direction for now. would conside the other part later, when I found a better solution/might need secondary alignment
+						calcu_eu_dis_csv_long_vcf(global_list,svelter_list,plt_figure_index,PacVal_score_hash,k1[:-1],k1[-1])
+						#calcu_eu_dis_csv_long_vcf(global_list,svelter_list,k1[:-1],k1[-1],out_path)
+			vf.write_PacVal_score_hash(PacVal_file_out,PacVal_file_in,PacVal_score_hash)
+	if function_name=='bed':
+		import bed_function as bf
+		def global_para_define():
+			global PacVal_file_in
+			PacVal_file_in=dict_opts['--sv-input']
+			global filein
+			filein=dict_opts['--sv-input']
+			global PacVal_file_out
+			PacVal_file_out=filein+'.PacVal'
+			global PacVal_score_hash
+			PacVal_score_hash={}
+		def main():
+			Command_parametre_readin()
+			global_para_define()
+			case_hash=bf.bed_readin(dict_opts)
+			global plt_figure_index
+			plt_figure_index=0
+			global_list=[lenght_cff,dots_num_cff,clu_dis_cff, point_dis_cff, simple_dis_cff, invert_base, dict_opts, out_path, out_file_Cannot_Validate, sample_name, start, delta, bam_in, ref, chromosomes, region_QC_Cff, min_length, min_read_compare, case_number, qc_file_name]
+			svelter_list=[PacVal_file_in,PacVal_file_out]
+			for k2 in sorted(case_hash.keys()):
+				for k1 in case_hash[k2]:
+					print k1
+					if not k1[3]=='/':
+						plt_figure_index+=1
+						if not '.' in k1 and not '^' in k1:
+							if k1[2]-k1[1]<5000:
+								PacVal_score_hash=calcu_eu_dis_complex_short(global_list,svelter_list,plt_figure_index,PacVal_score_hash,k1[3:5]+k1[:3],k1[-2])
+							else: 
+								PacVal_score_hash=calcu_eu_dis_simple_long(global_list,svelter_list,plt_figure_index,PacVal_score_hash,k1[3:5]+k1[:3],k1[-2])
+					else:
+						plt_figure_index+=1
+						if not '.' in k1 and not '^' in k1:
+							if k1[2]-k1[1]<5000:
+								PacVal_score_hash=calcu_eu_dis_ins_short(global_list,svelter_list,plt_figure_index,PacVal_score_hash,k1[3:5]+k1[:3],k1[-2],k1[-1])
+			bf.write_PacVal_score_hash()
+	time1=time.time()
+	main()
+	time2=time.time()
+	print 'VaLoR Done!'
+	print 'Time Consuming:'+str(time2-time1)
