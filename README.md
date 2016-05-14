@@ -32,11 +32,7 @@ Optional Parameters:
 ##Quick Start
 Download and Install
 ```
-git clone 
+git clone https://github.com/xuefzhao/VaLoR.git
 cd VaLoR
-chmod +x VaLoR
-cp VaLoR your/bin/directory
+python setup install --user
 ```
-
-
-
